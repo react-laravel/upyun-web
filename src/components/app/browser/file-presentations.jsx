@@ -43,11 +43,33 @@ export function FileTypeIcon({ item, className }) {
 
 function ThumbnailPreview({ item, token }) {
   const [imageFailed, setImageFailed] = useState(false)
+  const [renderSize, setRenderSize] = useState({ width: 400, height: 300 })
+  const containerRef = useRef(null)
   const kind = getFileKind(item)
+
+  useEffect(() => {
+    const node = containerRef.current
+    if (!node) return
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setRenderSize({ width: Math.round(rect.width), height: Math.round(rect.height) })
+      }
+    }
+
+    updateSize()
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateSize)
+      observer.observe(node)
+      return () => observer.disconnect()
+    }
+  }, [])
 
   if (item.folderType === 'F') {
     return (
-      <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#fef3c7_0%,#f5f5f4_100%)] text-amber-500">
+      <div ref={containerRef} className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#fef3c7_0%,#f5f5f4_100%)] text-amber-500">
         <FolderIcon className="size-18" />
       </div>
     )
@@ -55,17 +77,19 @@ function ThumbnailPreview({ item, token }) {
 
   if (kind === 'image' && token && !imageFailed) {
     return (
-      <img
-        alt={item.filename}
-        className="h-full w-full object-cover"
-        src={api.previewUrl(token, item.uri)}
-        onError={() => setImageFailed(true)}
-      />
+      <div ref={containerRef} className="h-full w-full">
+        <img
+          alt={item.filename}
+          className="h-full w-full object-cover"
+          src={api.previewUrl(token, item.uri, { width: renderSize.width, height: renderSize.height })}
+          onError={() => setImageFailed(true)}
+        />
+      </div>
     )
   }
 
   return (
-    <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#fafaf9_0%,#f1f5f9_100%)] text-stone-500">
+    <div ref={containerRef} className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#fafaf9_0%,#f1f5f9_100%)] text-stone-500">
       <FileTypeIcon item={item} className="size-18" />
     </div>
   )

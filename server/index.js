@@ -252,6 +252,8 @@ async function sendRemoteFolderArchive(req, res, folderPath) {
 
 async function sendRemoteFile(req, res, { download }) {
   const targetPath = String(req.query.path || '')
+  const width = Number(req.query.width || 0)
+  const height = Number(req.query.height || 0)
 
   if (!targetPath) {
     throw new Error(download ? '当前只支持下载单个文件' : '当前只支持预览单个文件')
@@ -262,6 +264,13 @@ async function sendRemoteFile(req, res, { download }) {
       throw new Error('当前只支持预览单个文件')
     }
     await sendRemoteFolderArchive(req, res, targetPath)
+    return
+  }
+
+  if (width > 0 && height > 0) {
+    const processingUrl = req.session.client.getImageProcessingUrl(targetPath, { width, height })
+    res.setHeader('Cache-Control', 'private, max-age=3600')
+    res.redirect(302, processingUrl.href)
     return
   }
 

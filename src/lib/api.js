@@ -108,8 +108,11 @@ export const api = {
   downloadUrl(token, targetPath) {
     return `/api/download?path=${encodeURIComponent(targetPath)}&token=${encodeURIComponent(token)}`
   },
-  previewUrl(token, targetPath) {
-    return `/api/preview?path=${encodeURIComponent(targetPath)}&token=${encodeURIComponent(token)}`
+  previewUrl(token, targetPath, { width, height } = {}) {
+    const params = [`path=${encodeURIComponent(targetPath)}`, `token=${encodeURIComponent(token)}`]
+    if (width) params.push(`width=${encodeURIComponent(width)}`)
+    if (height) params.push(`height=${encodeURIComponent(height)}`)
+    return `/api/preview?${params.join('&')}`
   },
   upload(token, { remotePath, files, relativePaths = [] }) {
     const formData = new FormData()

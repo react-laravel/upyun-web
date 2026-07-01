@@ -429,4 +429,15 @@ export class UpyunSession {
   async createDownloadResponse(uri) {
     return this.requestRaw(uri, { method: 'GET' })
   }
+
+  getImageProcessingUrl(uri, { width, height }) {
+    const normalizedUri = this.normalizeFolderPath(uri)
+    const params = []
+    if (width) params.push(`fw/${Math.round(width)}`)
+    if (height) params.push(`fh/${Math.round(height)}`)
+    const processing = params.length ? `!${params.join('/')}` : ''
+    const filename = normalizedUri.endsWith('/') ? normalizedUri : normalizedUri.replace(/\/$/, '')
+    const processedPath = `${processing}/${filename}`
+    return this.getUrl({ uri: processedPath })
+  }
 }
