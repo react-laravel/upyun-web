@@ -34,8 +34,7 @@ function TaskList({ type, list, onClearCompletedTasks, onDeleteTask }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-medium">{title}</div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">{list.length}</Badge>
+        <div>
           {canClearCompleted && (
             <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => onClearCompletedTasks(type)}>
               清空已完成
@@ -167,24 +166,30 @@ export function ActivityDrawer({
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="flex items-center rounded-xl border bg-background p-1">
-              {SIDEBAR_VIEW_OPTIONS.map((option) => (
-                <Button
-                  key={option.key}
-                  variant={sidebarView === option.key ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => onSidebarViewChange(option.key)}>
-                  {option.label}
-                </Button>
-              ))}
+              {SIDEBAR_VIEW_OPTIONS.map((option) => {
+                const count = option.key === 'history'
+                  ? operationHistory.length
+                  : option.key === 'uploads'
+                    ? uploadTasks.length
+                    : downloadTasks.length
+
+                return (
+                  <Button
+                    key={option.key}
+                    variant={sidebarView === option.key ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => onSidebarViewChange(option.key)}>
+                    {option.label}
+                    {count > 0 && <Badge variant="secondary" className="ml-1.5 h-4 min-w-4 px-1 text-[10px]">{count}</Badge>}
+                  </Button>
+                )
+              })}
             </div>
 
             {sidebarView === 'history' ? (
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium">操作历史</div>
-                  <Badge variant="secondary">{operationHistory.length}</Badge>
-                </div>
+                <div className="text-sm font-medium">操作历史</div>
 
                 {!operationHistory.length ? (
                   <div className="flex min-h-48 items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">

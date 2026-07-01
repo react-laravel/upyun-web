@@ -168,10 +168,10 @@ export function GridItemCard({
       <div className={cn('relative overflow-hidden bg-muted', previewAspectClassName)}>
         <ThumbnailPreview item={item} token={token} />
         {(showCheckbox || showMoreButton) && (
-          <div className="absolute left-1.5 right-1 top-1.5 z-10 flex items-center justify-between gap-2">
-            {showCheckbox ? (
+          <>
+            {showCheckbox && (
               <label
-                className="flex size-7 items-center justify-center rounded-lg bg-background/85 backdrop-blur-sm"
+                className="absolute left-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-lg bg-background/85 backdrop-blur-sm"
                 onClick={(event) => event.stopPropagation()}>
                 <input
                   type="checkbox"
@@ -179,15 +179,15 @@ export function GridItemCard({
                   onChange={(event) => onToggleSelection(event.target.checked)}
                 />
               </label>
-            ) : (
-              <div />
             )}
             {showMoreButton && (
-              <div className="rounded-lg" onClick={(event) => event.stopPropagation()}>
+              <div
+                className="absolute top-1.5 right-1 z-10 rounded-lg"
+                onClick={(event) => event.stopPropagation()}>
                 {actions}
               </div>
             )}
-          </div>
+          </>
         )}
         {dropActive && (
           <div className="absolute inset-x-4 bottom-4 rounded-full bg-sky-600/90 px-3 py-1 text-center text-xs font-medium text-white">
