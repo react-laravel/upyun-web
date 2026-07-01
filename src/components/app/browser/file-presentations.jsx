@@ -144,7 +144,7 @@ export function GridItemCard({
       <div className={cn('relative overflow-hidden bg-muted', previewAspectClassName)}>
         <ThumbnailPreview item={item} token={token} />
         {(showCheckbox || showMoreButton) && (
-          <div className="absolute inset-x-1.5 top-1.5 z-10 flex items-center justify-between gap-2">
+          <div className="absolute left-1.5 right-1 top-1.5 z-10 flex items-center justify-between gap-2">
             {showCheckbox ? (
               <label
                 className="flex size-7 items-center justify-center rounded-lg bg-background/85 backdrop-blur-sm"
@@ -159,9 +159,7 @@ export function GridItemCard({
               <div />
             )}
             {showMoreButton && (
-              <div
-                className="rounded-lg bg-background/85 backdrop-blur-sm"
-                onClick={(event) => event.stopPropagation()}>
+              <div className="rounded-lg" onClick={(event) => event.stopPropagation()}>
                 {actions}
               </div>
             )}
@@ -174,14 +172,12 @@ export function GridItemCard({
         )}
       </div>
 
-      {showMeta && (
-        <div className="space-y-1 border-t px-2.5 py-2.5">
-          <div className="truncate text-sm font-medium leading-tight">{item.filename}</div>
-          {item.folderType !== 'F' && (
-            <div className="truncate text-xs text-muted-foreground">{formatBytes(item.size)}</div>
-          )}
-        </div>
-      )}
+      <div className="border-t px-2.5 py-2.5">
+        <div className="truncate text-sm font-medium leading-tight">{item.filename}</div>
+        {showMeta && item.folderType !== 'F' && (
+          <div className="truncate text-xs text-muted-foreground">{formatBytes(item.size)}</div>
+        )}
+      </div>
     </div>
   )
 }
