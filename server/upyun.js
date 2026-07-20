@@ -430,15 +430,23 @@ export class UpyunSession {
     return this.requestRaw(uri, { method: 'GET' })
   }
 
-  getImageProcessingPath(uri, { width, height }) {
+  getImageProcessingUrl(uri, { width, height }) {
     const normalizedUri = uri.startsWith('/') ? uri : `/${uri}`
-    const params = []
-    if (width) params.push(`fw/${Math.round(width)}`)
-    if (height) params.push(`fh/${Math.round(height)}`)
-    return params.length ? `${normalizedUri}!/${params.join('/')}` : normalizedUri
+    const target = new URL('/', `http://${this.bucketName}.test.upcdn.net`)
+    const targetWidth = Math.min(9999, Math.max(1, Math.round(width)))
+    const targetHeight = Math.min(9999, Math.max(1, Math.round(height)))
+    target.pathname = `${normalizedUri}!/fwfh/${targetWidth}x${targetHeight}`
+    return target
   }
 
   async createImagePreviewResponse(uri, { width, height }) {
-    return this.requestRaw(this.getImageProcessingPath(uri, { width, height }), { method: 'GET' })
+    const response = await fetch(this.getImageProcessingUrl(uri, { width, height }))
+
+    if (!response.ok) {
+      const message = (await response.text().catch(() => '')) || response.statusText
+      throw new Error(message || `HTTP ${response.status}`)
+    }
+
+    return response
   }
 }

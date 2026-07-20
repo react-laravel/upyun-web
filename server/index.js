@@ -269,13 +269,7 @@ async function sendRemoteFile(req, res, { download }) {
 
   let response
   if (!download && width > 0 && height > 0) {
-    try {
-      response = await req.session.client.createImagePreviewResponse(targetPath, { width, height })
-    } catch {
-      // Some services do not have URL image processing enabled. The original
-      // image is still a valid preview, so keep it available as a fallback.
-      response = await req.session.client.createDownloadResponse(targetPath)
-    }
+    response = await req.session.client.createImagePreviewResponse(targetPath, { width, height })
   } else {
     response = await req.session.client.createDownloadResponse(targetPath)
   }

@@ -14,6 +14,9 @@ import { api } from '@/lib/api'
 import { formatBytes, getFileKind } from '@/lib/upyun-app'
 import { cn } from '@/lib/utils'
 
+const getPreviewPixelRatio = () =>
+  typeof window === 'undefined' ? 1 : Math.min(Math.max(window.devicePixelRatio || 1, 1), 2)
+
 export function FileTypeIcon({ item, className }) {
   const kind = getFileKind(item)
   const classes = cn(
@@ -44,6 +47,7 @@ export function FileTypeIcon({ item, className }) {
 export function FileListThumbnail({ item, token }) {
   const [imageFailed, setImageFailed] = useState(false)
   const kind = getFileKind(item)
+  const previewSize = Math.round(40 * getPreviewPixelRatio())
 
   if (kind !== 'image' || !token || imageFailed) {
     return <FileTypeIcon item={item} />
@@ -54,7 +58,7 @@ export function FileListThumbnail({ item, token }) {
       alt=""
       aria-hidden="true"
       className="size-10 shrink-0 rounded-md border bg-muted object-cover"
-      src={api.previewUrl(token, item.uri, { width: 80, height: 80 })}
+      src={api.previewUrl(token, item.uri, { width: previewSize, height: previewSize })}
       loading="lazy"
       onError={() => setImageFailed(true)}
     />
@@ -63,7 +67,7 @@ export function FileListThumbnail({ item, token }) {
 
 function ThumbnailPreview({ item, token }) {
   const [imageFailed, setImageFailed] = useState(false)
-  const [renderSize, setRenderSize] = useState({ width: 400, height: 300 })
+  const [renderSize, setRenderSize] = useState(null)
   const containerRef = useRef(null)
   const kind = getFileKind(item)
 
@@ -74,17 +78,27 @@ function ThumbnailPreview({ item, token }) {
     const updateSize = () => {
       const rect = node.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
-        setRenderSize({ width: Math.round(rect.width), height: Math.round(rect.height) })
+        const pixelRatio = getPreviewPixelRatio()
+        setRenderSize({
+          width: Math.round(rect.width * pixelRatio),
+          height: Math.round(rect.height * pixelRatio),
+        })
       }
     }
 
     updateSize()
+    window.addEventListener('resize', updateSize)
 
     if (typeof ResizeObserver !== 'undefined') {
       const observer = new ResizeObserver(updateSize)
       observer.observe(node)
-      return () => observer.disconnect()
+      return () => {
+        observer.disconnect()
+        window.removeEventListener('resize', updateSize)
+      }
     }
+
+    return () => window.removeEventListener('resize', updateSize)
   }, [])
 
   if (item.folderType === 'F') {
@@ -98,13 +112,15 @@ function ThumbnailPreview({ item, token }) {
   if (kind === 'image' && token && !imageFailed) {
     return (
       <div ref={containerRef} className="h-full w-full">
-        <img
-          alt={item.filename}
-          className="h-full w-full object-cover"
-          src={api.previewUrl(token, item.uri, { width: renderSize.width, height: renderSize.height })}
-          loading="lazy"
-          onError={() => setImageFailed(true)}
-        />
+        {renderSize && (
+          <img
+            alt={item.filename}
+            className="h-full w-full object-cover"
+            src={api.previewUrl(token, item.uri, { width: renderSize.width, height: renderSize.height })}
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+          />
+        )}
       </div>
     )
   }
