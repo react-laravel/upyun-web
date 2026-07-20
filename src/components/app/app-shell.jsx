@@ -221,6 +221,7 @@ export function AppShell({ controller }) {
                 selectedPaths={selectedPaths}
                 dropTargetPath={dropTargetPath}
                 busy={busy}
+                token={token}
                 onSort={handleSort}
                 onToggleSelection={toggleSelection}
                 onItemClick={handleItemClick}

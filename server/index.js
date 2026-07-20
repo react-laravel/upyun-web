@@ -267,19 +267,24 @@ async function sendRemoteFile(req, res, { download }) {
     return
   }
 
-  if (width > 0 && height > 0) {
-    const processingUrl = req.session.client.getImageProcessingUrl(targetPath, { width, height })
-    res.setHeader('Cache-Control', 'private, max-age=3600')
-    res.redirect(302, processingUrl.href)
-    return
+  let response
+  if (!download && width > 0 && height > 0) {
+    try {
+      response = await req.session.client.createImagePreviewResponse(targetPath, { width, height })
+    } catch {
+      // Some services do not have URL image processing enabled. The original
+      // image is still a valid preview, so keep it available as a fallback.
+      response = await req.session.client.createDownloadResponse(targetPath)
+    }
+  } else {
+    response = await req.session.client.createDownloadResponse(targetPath)
   }
 
-  const response = await req.session.client.createDownloadResponse(targetPath)
   const filename = decodeFilename(targetPath.split('/').pop() || 'download')
   const contentType = response.headers.get('content-type') || 'application/octet-stream'
 
   res.setHeader('Content-Type', contentType)
-  res.setHeader('Cache-Control', 'private, max-age=60')
+  res.setHeader('Cache-Control', `private, max-age=${width > 0 && height > 0 ? 3600 : 60}`)
 
   if (download) {
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`)

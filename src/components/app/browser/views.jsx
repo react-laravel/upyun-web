@@ -13,7 +13,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/lib/upyun-app'
 import { cn } from '@/lib/utils'
-import { FileTypeIcon, GridItemCard } from '@/components/app/browser/file-presentations'
+import { FileListThumbnail, GridItemCard } from '@/components/app/browser/file-presentations'
 
 export function ItemActionsMenu({
   item,
@@ -64,9 +64,9 @@ export function FileGridView({
   selectedPaths,
   dropTargetPath,
   busy,
+  token,
   touchMode,
   selectionMode,
-  token,
   activeGridDensity,
   gridGapClass,
   gridColumnsStyle,
@@ -150,6 +150,7 @@ export function FileListView({
   selectedPaths,
   dropTargetPath,
   busy,
+  token,
   onSort,
   onToggleSelection,
   onItemClick,
@@ -222,7 +223,7 @@ export function FileListView({
               </TableCell>
               <TableCell className="w-auto pl-0.5">
                 <div className="flex items-center gap-2">
-                  <FileTypeIcon item={item} />
+                  <FileListThumbnail item={item} token={token} />
                   <div className="min-w-0 overflow-hidden">
                     <div className="truncate font-medium">{item.filename}</div>
                     <div className="truncate text-xs text-muted-foreground xl:hidden">{formatDate(item.lastModified)}</div>

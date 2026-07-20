@@ -430,14 +430,15 @@ export class UpyunSession {
     return this.requestRaw(uri, { method: 'GET' })
   }
 
-  getImageProcessingUrl(uri, { width, height }) {
-    const normalizedUri = this.normalizeFolderPath(uri)
+  getImageProcessingPath(uri, { width, height }) {
+    const normalizedUri = uri.startsWith('/') ? uri : `/${uri}`
     const params = []
     if (width) params.push(`fw/${Math.round(width)}`)
     if (height) params.push(`fh/${Math.round(height)}`)
-    const processing = params.length ? `!${params.join('/')}` : ''
-    const filename = normalizedUri.endsWith('/') ? normalizedUri : normalizedUri.replace(/\/$/, '')
-    const processedPath = `${processing}/${filename}`
-    return this.getUrl({ uri: processedPath })
+    return params.length ? `${normalizedUri}!/${params.join('/')}` : normalizedUri
+  }
+
+  async createImagePreviewResponse(uri, { width, height }) {
+    return this.requestRaw(this.getImageProcessingPath(uri, { width, height }), { method: 'GET' })
   }
 }

@@ -41,6 +41,26 @@ export function FileTypeIcon({ item, className }) {
   return <FileIcon className={classes} />
 }
 
+export function FileListThumbnail({ item, token }) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const kind = getFileKind(item)
+
+  if (kind !== 'image' || !token || imageFailed) {
+    return <FileTypeIcon item={item} />
+  }
+
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className="size-10 shrink-0 rounded-md border bg-muted object-cover"
+      src={api.previewUrl(token, item.uri, { width: 80, height: 80 })}
+      loading="lazy"
+      onError={() => setImageFailed(true)}
+    />
+  )
+}
+
 function ThumbnailPreview({ item, token }) {
   const [imageFailed, setImageFailed] = useState(false)
   const [renderSize, setRenderSize] = useState({ width: 400, height: 300 })
@@ -82,6 +102,7 @@ function ThumbnailPreview({ item, token }) {
           alt={item.filename}
           className="h-full w-full object-cover"
           src={api.previewUrl(token, item.uri, { width: renderSize.width, height: renderSize.height })}
+          loading="lazy"
           onError={() => setImageFailed(true)}
         />
       </div>
