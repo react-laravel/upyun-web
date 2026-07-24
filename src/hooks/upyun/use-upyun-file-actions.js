@@ -76,6 +76,7 @@ export function useUpyunFileActions(state, utils) {
 
   function prepareRename(item) {
     if (!item) return
+    selectOnly(item.uri)
     state.setRenameValue(item.filename)
     state.setRenameOpen(true)
   }
