@@ -6,6 +6,7 @@ import {
   THEME_KEY,
   VIEW_MODE_KEY,
   matchesItemFilter,
+  matchesSearch,
   persistStoredTasks,
   readStoredProfileSettings,
 } from '@/lib/upyun-app'
@@ -27,6 +28,7 @@ export function useUpyunEffects({
     setSelectedPaths,
     items,
     itemFilter,
+    searchQuery,
     operationHistory,
     tasks,
     profile,
@@ -46,13 +48,16 @@ export function useUpyunEffects({
     setDetailLoading,
     detailLoadTokenRef,
     token,
+    directoryLoadRef,
     moveOpen,
     moveTargets,
     moveBrowsePath,
     moveLoadTokenRef,
     setMoveLoading,
     setMoveFolders,
-    setError,
+    setMoveError,
+    message,
+    setMessage,
     error,
   } = state
 
@@ -99,11 +104,18 @@ export function useUpyunEffects({
   }, [touchMode, setSelectionMode])
 
   useEffect(() => {
-    setSelectedPaths((current) => current.filter((path) => {
-      const item = items.find((entry) => entry.uri === path)
-      return item ? matchesItemFilter(item, itemFilter) : false
-    }))
-  }, [itemFilter, items, setSelectedPaths])
+    const visiblePaths = new Set(items.filter((item) => matchesItemFilter(item, itemFilter) && matchesSearch(item, searchQuery)).map((item) => item.uri))
+    setSelectedPaths((current) => {
+      const next = current.filter((path) => visiblePaths.has(path))
+      return next.length === current.length ? current : next
+    })
+  }, [itemFilter, searchQuery, items, setSelectedPaths])
+
+  useEffect(() => {
+    if (!message) return
+    const timeout = window.setTimeout(() => setMessage(''), 6000)
+    return () => window.clearTimeout(timeout)
+  }, [message, setMessage])
 
   useEffect(() => {
     sessionStorage.setItem(OPERATION_HISTORY_KEY, JSON.stringify(operationHistory))
@@ -222,6 +234,7 @@ export function useUpyunEffects({
 
     const requestToken = ++moveLoadTokenRef.current
     setMoveLoading(true)
+    setMoveError('')
 
     api
       .list(token, moveBrowsePath)
@@ -239,7 +252,7 @@ export function useUpyunEffects({
       .catch((requestError) => {
         if (requestToken !== moveLoadTokenRef.current) return
         setMoveFolders([])
-        setError(requestError.message)
+        setMoveError(requestError.message)
       })
       .finally(() => {
         if (requestToken === moveLoadTokenRef.current) {
@@ -254,13 +267,15 @@ export function useUpyunEffects({
     moveLoadTokenRef,
     setMoveLoading,
     setMoveFolders,
-    setError,
+    setMoveError,
   ])
 
   useEffect(() => {
     if (token) {
       loadDirectory('/').catch(() => {})
     }
+    const requests = directoryLoadRef.current
+    return () => { requests.id += 1; requests.controller?.abort() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 

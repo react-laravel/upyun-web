@@ -1,5 +1,10 @@
 import {
   ArrowUpDownIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  FolderOpenIcon,
+  SearchXIcon,
+  LoaderCircleIcon,
   MoreHorizontalIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,6 +23,7 @@ import { FileListThumbnail, GridItemCard } from '@/components/app/browser/file-p
 export function ItemActionsMenu({
   item,
   onSelect,
+  busy,
   onOpenDetail,
   onCopyLink,
   onOpenInBrowser,
@@ -34,6 +40,9 @@ export function ItemActionsMenu({
         <Button
           variant="ghost"
           size="icon-sm"
+          disabled={busy}
+          aria-label={`更多操作：${item.filename}`}
+          onDoubleClick={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation()
             onSelect(item.uri)
@@ -58,8 +67,19 @@ export function ItemActionsMenu({
   )
 }
 
+export function BrowserEmptyState({ filtered, onClearFilters, onCreateFolder }) {
+  const Icon = filtered ? SearchXIcon : FolderOpenIcon
+  return <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+    <div className="rounded-2xl bg-muted p-4"><Icon className="size-7 text-muted-foreground" /></div>
+    <div className="font-medium">{filtered ? '没有匹配的项目' : '这个文件夹还是空的'}</div>
+    <p className="max-w-xs text-sm text-muted-foreground">{filtered ? '试试其他名称，或清除搜索和类型筛选。' : '上传文件，或新建文件夹来整理你的内容。'}</p>
+    <Button variant="outline" size="sm" onClick={filtered ? onClearFilters : onCreateFolder}>{filtered ? '清除筛选' : '新建文件夹'}</Button>
+  </div>
+}
+
 export function FileGridView({
   loading,
+  emptyState,
   visibleItems,
   selectedPaths,
   dropTargetPath,
@@ -89,17 +109,17 @@ export function FileGridView({
   onDelete,
 }) {
   if (loading) {
-    return <div className="py-18 text-center text-sm text-muted-foreground">正在读取目录…</div>
+    return <div role="status" className="flex items-center justify-center gap-2 py-18 text-sm text-muted-foreground"><LoaderCircleIcon className="size-4 animate-spin" />正在读取目录…</div>
   }
 
   if (!visibleItems.length) {
-    return <div className="py-18 text-center text-sm text-muted-foreground">当前目录为空，可以直接新建文件夹或上传文件。</div>
+    return emptyState
   }
 
   const previewAspectClassName = activeGridDensity.columns >= 4 ? 'aspect-square' : 'aspect-[4/3]'
 
   return (
-    <div className={cn('grid content-start', gridGapClass)} style={gridColumnsStyle}>
+    <div className={cn('file-grid grid content-start', gridGapClass)} style={gridColumnsStyle}>
       {visibleItems.map((item) => {
         const active = selectedPaths.includes(item.uri)
         const dropActive = item.folderType === 'F' && dropTargetPath === item.uri
@@ -118,6 +138,7 @@ export function FileGridView({
             actions={
               <ItemActionsMenu
                 item={item}
+                busy={busy}
                 onSelect={onSelectItem}
                 onOpenDetail={onOpenDetail}
                 onCopyLink={onCopyLink}
@@ -129,7 +150,7 @@ export function FileGridView({
               />
             }
             onToggleSelection={(checked) => onToggleSelection(item.uri, checked)}
-            onClick={() => onItemClick(item)}
+            onClick={(event) => onItemClick(item, event)}
             onDoubleClick={() => onItemOpen(item)}
             onKeyDown={(event) => onItemKeyDown(event, item)}
             onDragStart={(event) => onDragStart(event, item)}
@@ -146,12 +167,16 @@ export function FileGridView({
 
 export function FileListView({
   loading,
+  emptyState,
   visibleItems,
   selectedPaths,
   dropTargetPath,
   busy,
   token,
   onSort,
+  sortState,
+  onSelectAll,
+  onItemKeyDown,
   onToggleSelection,
   onItemClick,
   onItemOpen,
@@ -169,53 +194,66 @@ export function FileListView({
   onPrepareRename,
   onDelete,
 }) {
+  const allSelected = visibleItems.length > 0 && visibleItems.every((item) => selectedPaths.includes(item.uri))
+  const sortIndicator = (key) => sortState.key === key
+    ? sortState.direction === 'asc' ? <ArrowUpIcon className="size-3.5" /> : <ArrowDownIcon className="size-3.5" />
+    : <ArrowUpDownIcon className="size-3.5 opacity-50" />
   return (
     <Table className="table-fixed">
       <TableHeader>
         <TableRow className="bg-muted/70">
-          <TableHead className="w-9"></TableHead>
-          <TableHead className="w-auto">
+          <TableHead className="w-11 text-center">
+            <input type="checkbox" aria-label="全选当前结果" checked={allSelected}
+              ref={(node) => { if (node) node.indeterminate = !allSelected && selectedPaths.length > 0 }}
+              disabled={busy || loading || !visibleItems.length} onChange={onSelectAll} />
+          </TableHead>
+          <TableHead className="w-auto" aria-sort={sortState.key === 'filename' ? (sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
             <button type="button" className="inline-flex items-center gap-1" onClick={() => onSort('filename')}>
               名称
-              <ArrowUpDownIcon className="size-3.5" />
+              {sortIndicator('filename')}
             </button>
           </TableHead>
-          <TableHead className="hidden w-40 xl:table-cell">
+          <TableHead className="hidden w-40 xl:table-cell" aria-sort={sortState.key === 'lastModified' ? (sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
             <button type="button" className="inline-flex items-center gap-1" onClick={() => onSort('lastModified')}>
               修改时间
-              <ArrowUpDownIcon className="size-3.5" />
+              {sortIndicator('lastModified')}
             </button>
           </TableHead>
-          <TableHead className="hidden w-28 lg:table-cell">
+          <TableHead className="hidden w-28 lg:table-cell" aria-sort={sortState.key === 'size' ? (sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
             <button type="button" className="inline-flex items-center gap-1" onClick={() => onSort('size')}>
               大小
-              <ArrowUpDownIcon className="size-3.5" />
+              {sortIndicator('size')}
             </button>
           </TableHead>
           <TableHead className="w-14"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {visibleItems.map((item) => {
+        {!loading && visibleItems.map((item) => {
           const active = selectedPaths.includes(item.uri)
           const dropActive = item.folderType === 'F' && dropTargetPath === item.uri
 
           return (
             <TableRow
               key={item.uri}
+              tabIndex={busy ? -1 : 0}
+              aria-selected={active}
+              onKeyDown={(event) => onItemKeyDown(event, item)}
               data-state={active ? 'selected' : undefined}
               draggable={!busy}
-              className={cn('cursor-pointer', dropActive && 'bg-sky-50 ring-1 ring-inset ring-sky-300')}
-              onClick={() => onItemClick(item)}
+              className={cn('cursor-pointer outline-offset-[-2px] focus-visible:outline-2 focus-visible:outline-primary', dropActive && 'bg-primary/10 ring-1 ring-inset ring-primary/40')}
+              onClick={(event) => onItemClick(item, event)}
               onDoubleClick={() => onItemOpen(item)}
               onDragStart={(event) => onDragStart(event, item)}
               onDragEnd={onDragEnd}
               onDragOver={item.folderType === 'F' ? (event) => onDragOver(event, item.uri) : undefined}
               onDragLeave={item.folderType === 'F' ? () => onDragLeave(item.uri) : undefined}
               onDrop={item.folderType === 'F' ? (event) => void onDrop(event, item.uri) : undefined}>
-              <TableCell className="w-9 pr-0 pl-1">
+              <TableCell className="w-11 text-center" onDoubleClick={(event) => event.stopPropagation()}>
                 <input
                   type="checkbox"
+                  aria-label={`选择 ${item.filename}`}
+                  disabled={busy}
                   checked={active}
                   onClick={(event) => event.stopPropagation()}
                   onChange={(event) => onToggleSelection(item.uri, event.target.checked)}
@@ -225,16 +263,17 @@ export function FileListView({
                 <div className="flex items-center gap-2">
                   <FileListThumbnail item={item} token={token} />
                   <div className="min-w-0 overflow-hidden">
-                    <div className="truncate font-medium">{item.filename}</div>
+                    <div className="truncate font-medium" title={item.filename}>{item.filename}</div>
                     <div className="truncate text-xs text-muted-foreground xl:hidden">{formatDate(item.lastModified)}</div>
                   </div>
                 </div>
               </TableCell>
               <TableCell className="hidden xl:table-cell">{formatDate(item.lastModified)}</TableCell>
               <TableCell className="hidden lg:table-cell">{item.folderType === 'F' ? '--' : formatBytes(item.size)}</TableCell>
-              <TableCell onClick={(event) => event.stopPropagation()}>
+              <TableCell onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
                 <ItemActionsMenu
                   item={item}
+                  busy={busy}
                   onSelect={onSelectItem}
                   onOpenDetail={onOpenDetail}
                   onCopyLink={onCopyLink}
@@ -251,8 +290,8 @@ export function FileListView({
 
         {!visibleItems.length && !loading && (
           <TableRow>
-            <TableCell colSpan={5} className="py-16 text-center text-muted-foreground">
-              当前目录为空，可以直接新建文件夹或上传文件。
+            <TableCell colSpan={5} className="whitespace-normal text-center">
+              {emptyState}
             </TableCell>
           </TableRow>
         )}

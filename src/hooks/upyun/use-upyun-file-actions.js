@@ -4,25 +4,40 @@ import {
   getItemNameFromPath,
   getMovedPath,
   getParentPath,
+  validateItemName,
 } from '@/lib/upyun-app'
 import { createHistoryEntry } from '@/hooks/upyun/upyun-action-utils'
 
 export function useUpyunFileActions(state, utils) {
   async function loadDirectory(nextPath = state.currentPath) {
-    if (!state.token) return
+    if (!state.token || state.operationRef.current) return
+    state.directoryLoadRef.current.controller?.abort()
+    const controller = new AbortController()
+    const requestId = ++state.directoryLoadRef.current.id
+    state.directoryLoadRef.current.controller = controller
     state.setLoading(true)
+    state.setDirectoryError('')
     state.setError('')
     state.setDropTargetPath('')
 
     try {
-      const response = await api.list(state.token, nextPath)
+      const response = await api.list(state.token, nextPath, { signal: controller.signal })
+      if (requestId !== state.directoryLoadRef.current.id) return
       state.setCurrentPath(response.path)
       state.setItems(response.data)
       state.setSelectedPaths([])
+      state.selectionAnchorRef.current = ''
+      if (response.path !== state.currentPath) state.setSearchQuery('')
     } catch (requestError) {
-      state.setError(requestError.message)
+      if (requestId !== state.directoryLoadRef.current.id || requestError.name === 'AbortError') return
+      if (requestError.status === 401) {
+        utils.clearSession(false)
+        state.setError('登录已过期，请重新连接')
+      } else {
+        state.setDirectoryError(requestError.message)
+      }
     } finally {
-      state.setLoading(false)
+      if (requestId === state.directoryLoadRef.current.id) state.setLoading(false)
     }
   }
 
@@ -59,12 +74,36 @@ export function useUpyunFileActions(state, utils) {
   }
 
   function toggleSelection(itemPath, checked) {
+    state.selectionAnchorRef.current = itemPath
     state.setSelectedPaths((current) => {
       if (checked) {
         return current.includes(itemPath) ? current : [...current, itemPath]
       }
       return current.filter((path) => path !== itemPath)
     })
+  }
+
+  function toggleSelectAll() {
+    const visiblePaths = state.visibleItems.map((item) => item.uri)
+    state.setSelectedPaths((current) => visiblePaths.every((path) => current.includes(path)) ? [] : visiblePaths)
+  }
+
+  function clearSelection() {
+    state.setSelectedPaths([])
+    state.selectionAnchorRef.current = ''
+  }
+
+  function handleCreateOpenChange(open) {
+    if (state.operationRef.current) return
+    state.setCreateOpen(open)
+    state.setNewFolderName('')
+    state.setDialogError('')
+  }
+
+  function handleRenameOpenChange(open) {
+    if (state.operationRef.current) return
+    state.setRenameOpen(open)
+    state.setDialogError('')
   }
 
   function handleSort(key) {
@@ -75,7 +114,8 @@ export function useUpyunFileActions(state, utils) {
   }
 
   function prepareRename(item) {
-    if (!item) return
+    if (!item || state.busy || state.loading) return
+    state.setDialogError('')
     selectOnly(item.uri)
     state.setRenameValue(item.filename)
     state.setRenameOpen(true)
@@ -87,6 +127,9 @@ export function useUpyunFileActions(state, utils) {
     state.setMoveTargets([item])
     state.setMoveBrowsePath(getParentPath(item.uri))
     state.setMoveFolders([])
+    state.setMoveError('')
+    state.setMoveLoading(true)
+    state.setDialogError('')
     state.setMoveOpen(true)
     state.setError('')
   }
@@ -96,11 +139,15 @@ export function useUpyunFileActions(state, utils) {
     state.setMoveTargets(state.selectedItems)
     state.setMoveBrowsePath(getParentPath(state.selectedItems[0].uri))
     state.setMoveFolders([])
+    state.setMoveError('')
+    state.setMoveLoading(true)
+    state.setDialogError('')
     state.setMoveOpen(true)
     state.setError('')
   }
 
   function handleMoveDialogChange(nextOpen) {
+    if (state.operationRef.current) return
     state.setMoveOpen(nextOpen)
     if (!nextOpen) {
       state.setMoveTargets([])
@@ -112,9 +159,9 @@ export function useUpyunFileActions(state, utils) {
   }
 
   async function handleCreateFolder() {
-    if (!state.newFolderName.trim()) return
-    state.setBusy(true)
-    state.setError('')
+    const validationError = validateItemName(state.newFolderName)
+    if (validationError) return state.setDialogError(validationError)
+    if (!utils.beginOperation()) return
 
     try {
       const response = await api.createFolder(state.token, {
@@ -133,16 +180,21 @@ export function useUpyunFileActions(state, utils) {
       state.setNewFolderName('')
       state.setCreateOpen(false)
     } catch (requestError) {
-      state.setError(requestError.message)
+      state.setDialogError(requestError.message)
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
   async function handleRename() {
-    if (!state.selectedItem || !state.renameValue.trim()) return
-    state.setBusy(true)
-    state.setError('')
+    if (!state.selectedItem) return
+    const validationError = validateItemName(state.renameValue)
+    if (validationError) return state.setDialogError(validationError)
+    if (state.renameValue.trim() === state.selectedItem.filename) {
+      state.setRenameOpen(false)
+      return
+    }
+    if (!utils.beginOperation()) return
 
     const oldPath = state.selectedItem.uri
     const isFolder = oldPath.endsWith('/')
@@ -175,9 +227,9 @@ export function useUpyunFileActions(state, utils) {
       state.setRenameOpen(false)
       state.setMessage(`已重命名为 ${nextName}`)
     } catch (requestError) {
-      state.setError(requestError.message)
+      state.setDialogError(requestError.message)
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
@@ -189,8 +241,7 @@ export function useUpyunFileActions(state, utils) {
     if (!sourcePaths.length) return false
     if (sourcePaths.some((sourcePath) => !canMovePath(sourcePath, targetPath))) return false
 
-    state.setBusy(true)
-    state.setError('')
+    if (!utils.beginOperation()) return false
     utils.clearTransientDragState()
 
     try {
@@ -236,14 +287,15 @@ export function useUpyunFileActions(state, utils) {
         state.setSelectedPaths([])
       }
       state.setError(requestError.message)
+      state.setDialogError(requestError.message)
       return false
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
   async function handleMoveFromDialog() {
-    if (!state.moveTargets.length) return
+    if (!state.canConfirmMove) return
     if (state.moveTargets.some((item) => !canMovePath(item.uri, state.moveBrowsePath))) {
       state.setError('目标目录与当前目录相同，或目标目录无效')
       return
@@ -258,12 +310,11 @@ export function useUpyunFileActions(state, utils) {
   async function handleUndoMove(entry) {
     if (!entry?.undo || entry.type !== 'move') return
 
-    state.setBusy(true)
-    state.setError('')
+    if (!utils.beginOperation()) return
 
     try {
       const response = await api.move(state.token, {
-        sourcePath: entry.undo.sourcePath,
+        sourcePaths: [entry.undo.sourcePath],
         targetPath: entry.undo.targetPath,
         currentPath: state.currentPath,
       })
@@ -278,15 +329,14 @@ export function useUpyunFileActions(state, utils) {
       }
       state.setError(requestError.message)
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
   async function handleUndoRename(entry) {
     if (!entry?.undo || entry.type !== 'rename') return
 
-    state.setBusy(true)
-    state.setError('')
+    if (!utils.beginOperation()) return
 
     try {
       const response = await api.rename(state.token, {
@@ -306,7 +356,7 @@ export function useUpyunFileActions(state, utils) {
       }
       state.setError(requestError.message)
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
@@ -316,21 +366,37 @@ export function useUpyunFileActions(state, utils) {
     if (entry.type === 'rename') return handleUndoRename(entry)
   }
 
-  async function handleDelete(targets = state.selectedPaths) {
-    if (!targets.length) return
-    const confirmText =
-      targets.length === 1 ? '确定删除当前文件吗？此操作不可恢复。' : `确定删除这 ${targets.length} 项吗？此操作不可恢复。`
+  function handleDelete(targets = state.selectedPaths) {
+    if (!targets.length || state.busy || state.loading) return
+    state.setDialogError('')
+    state.setDeleteTargets(state.items.filter((item) => targets.includes(item.uri)))
+  }
 
-    if (!window.confirm(confirmText)) return
+  function handleDeleteOpenChange(open) {
+    if (state.operationRef.current) return
+    if (!open) state.setDeleteTargets([])
+    state.setDialogError('')
+  }
 
-    state.setBusy(true)
-    state.setError('')
+  async function confirmDelete() {
+    const targets = state.deleteTargets.map((item) => item.uri)
+    if (!targets.length || !utils.beginOperation()) return
 
     try {
       const response = await api.deleteFiles(state.token, {
         paths: targets,
         currentPath: state.currentPath,
       })
+      state.setItems(response.listing.data)
+      const failures = (response.results || []).filter((result) => !result.result)
+      if (failures.length) {
+        const remaining = state.deleteTargets.filter((item) => response.listing.data.some((entry) => entry.uri === item.uri))
+        state.setSelectedPaths(remaining.map((item) => item.uri))
+        // Keep the confirmation open so partial failures cannot look like a successful deletion.
+        state.setDeleteTargets(remaining.length ? remaining : state.deleteTargets)
+        state.setDialogError(`${failures.length} 项删除失败：${failures[0].message || '请刷新目录后重试'}`)
+        return
+      }
       utils.pushHistoryEntry(
         createHistoryEntry({
           type: 'delete',
@@ -341,14 +407,16 @@ export function useUpyunFileActions(state, utils) {
       state.setItems(response.listing.data)
       state.setSelectedPaths([])
       state.setMessage('删除完成')
+      state.setDeleteTargets([])
     } catch (requestError) {
-      state.setError(requestError.message)
+      state.setDialogError(requestError.message)
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
   function handleRowOpen(item) {
+    if (state.busy || state.loading) return
     if (item.folderType === 'F') {
       loadDirectory(item.uri).catch(() => {})
       return
@@ -356,7 +424,8 @@ export function useUpyunFileActions(state, utils) {
     openDetail(item)
   }
 
-  function handleItemClick(item) {
+  function handleItemClick(item, event = {}) {
+    if (state.busy || state.loading) return
     if (state.touchMode) {
       if (state.selectionMode) {
         toggleSelection(item.uri, !state.selectedPaths.includes(item.uri))
@@ -365,13 +434,38 @@ export function useUpyunFileActions(state, utils) {
       handleRowOpen(item)
       return
     }
-    selectOnly(item.uri)
+    if (event.shiftKey && state.selectionAnchorRef.current) {
+      const anchor = state.visibleItems.findIndex((entry) => entry.uri === state.selectionAnchorRef.current)
+      const index = state.visibleItems.findIndex((entry) => entry.uri === item.uri)
+      if (anchor >= 0 && index >= 0) {
+        const range = state.visibleItems.slice(Math.min(anchor, index), Math.max(anchor, index) + 1).map((entry) => entry.uri)
+        state.setSelectedPaths((current) => event.metaKey || event.ctrlKey ? [...new Set([...current, ...range])] : range)
+        return
+      }
+    }
+    state.selectionAnchorRef.current = item.uri
+    if (event.metaKey || event.ctrlKey) {
+      toggleSelection(item.uri, !state.selectedPaths.includes(item.uri))
+    } else {
+      selectOnly(item.uri)
+    }
   }
 
   function handleItemKeyDown(event, item) {
+    if (event.target !== event.currentTarget || state.busy || state.loading) return
+    if (event.key === 'Escape') {
+      clearSelection()
+      return
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault()
+      toggleSelectAll()
+      return
+    }
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
-    handleRowOpen(item)
+    if (event.key === ' ') toggleSelection(item.uri, !state.selectedPaths.includes(item.uri))
+    else handleRowOpen(item)
   }
 
   function handleDragStart(event, item) {
@@ -414,6 +508,12 @@ export function useUpyunFileActions(state, utils) {
   }
 
   return {
+    toggleSelectAll,
+    clearSelection,
+    handleCreateOpenChange,
+    handleRenameOpenChange,
+    handleDeleteOpenChange,
+    confirmDelete,
     loadDirectory,
     selectOnly,
     openDetail,

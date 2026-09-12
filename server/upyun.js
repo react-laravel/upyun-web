@@ -44,7 +44,8 @@ export class UpyunSession {
   getUrl(input) {
     const uri = typeof input === 'object' ? input.uri : input
     const search = typeof input === 'object' ? input.search : ''
-    const target = new URL(`${this.bucketName}${uri}`, API_ORIGIN)
+    const encodedPath = uri.split('/').map(encodeURIComponent).join('/')
+    const target = new URL(`${encodeURIComponent(this.bucketName)}${encodedPath}`, API_ORIGIN)
     if (search) {
       target.search = search
     }

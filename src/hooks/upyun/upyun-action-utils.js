@@ -23,6 +23,21 @@ export function createHistoryEntry({ type, title, detail, undo = null }) {
 }
 
 export function createActionUtils(state) {
+  function beginOperation() {
+    if (state.operationRef.current || state.loading) return false
+    state.operationRef.current = true
+    state.setBusy(true)
+    state.setError('')
+    state.setMessage('')
+    state.setDialogError('')
+    return true
+  }
+
+  function endOperation() {
+    state.operationRef.current = false
+    state.setBusy(false)
+  }
+
   function rememberSession(nextToken, nextProfile, nextUsage) {
     sessionStorage.setItem(TOKEN_KEY, nextToken)
     sessionStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile))
@@ -73,6 +88,22 @@ export function createActionUtils(state) {
   }
 
   function clearSession(notify = true) {
+    state.directoryLoadRef.current.id += 1
+    state.directoryLoadRef.current.controller?.abort()
+    state.detailLoadTokenRef.current += 1
+    state.moveLoadTokenRef.current += 1
+    state.setLoading(false)
+    state.setDirectoryError('')
+    state.setDialogError('')
+    state.setMoveError('')
+    state.setCreateOpen(false)
+    state.setRenameOpen(false)
+    state.setMoveOpen(false)
+    state.setMoveTargets([])
+    state.setDeleteTargets([])
+    state.setSearchQuery('')
+    state.setSelectionMode(false)
+    state.setItemFilter('all')
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(PROFILE_KEY)
     sessionStorage.removeItem(USAGE_KEY)
@@ -110,6 +141,8 @@ export function createActionUtils(state) {
   }
 
   return {
+    beginOperation,
+    endOperation,
     rememberSession,
     clearTransientDragState,
     pushHistoryEntry,

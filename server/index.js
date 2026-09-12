@@ -65,13 +65,6 @@ function handleError(res, error, status = 500) {
   })
 }
 
-function decodeFilename(value = 'download') {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
-  }
-}
 
 function getParentPath(targetPath = '') {
   const parts = String(targetPath || '').split('/').filter(Boolean)
@@ -182,7 +175,7 @@ async function appendTarEntry(stream, { name, size = 0, mode, type, mtime }, bod
 
 async function sendRemoteFolderArchive(req, res, folderPath) {
   const entries = await req.session.client.traverseDir([folderPath], { relative: true })
-  const folderName = decodeFilename(folderPath.split('/').filter(Boolean).pop() || 'folder')
+  const folderName = folderPath.split('/').filter(Boolean).pop() || 'folder'
   const archiveName = `${folderName}.tar`
 
   res.setHeader('Content-Type', 'application/x-tar')
@@ -274,7 +267,7 @@ async function sendRemoteFile(req, res, { download }) {
     response = await req.session.client.createDownloadResponse(targetPath)
   }
 
-  const filename = decodeFilename(targetPath.split('/').pop() || 'download')
+  const filename = targetPath.split('/').pop() || 'download'
   const contentType = response.headers.get('content-type') || 'application/octet-stream'
 
   res.setHeader('Content-Type', contentType)

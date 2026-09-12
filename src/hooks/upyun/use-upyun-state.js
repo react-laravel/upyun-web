@@ -4,6 +4,7 @@ import {
   PROFILE_KEY,
   initialAuthForm,
   matchesItemFilter,
+  matchesSearch,
   readStoredGridDensity,
   readStoredOperationHistory,
   readStoredProfileSettings,
@@ -18,14 +19,14 @@ import {
 } from '@/lib/upyun-app'
 
 export function useUpyunState() {
-  const storedProfile = (() => {
+  const [storedProfile] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem(PROFILE_KEY) || 'null')
     } catch {
       return null
     }
-  })()
-  const storedProfileSettings = readStoredProfileSettings(storedProfile?.key)
+  })
+  const [storedProfileSettings] = useState(() => readStoredProfileSettings(storedProfile?.key))
 
   const [authForm, setAuthForm] = useState({
     ...initialAuthForm,
@@ -44,6 +45,7 @@ export function useUpyunState() {
   const [theme, setTheme] = useState(readStoredTheme)
   const [gridDensity, setGridDensity] = useState(readStoredGridDensity)
   const [itemFilter, setItemFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [profileSettings, setProfileSettings] = useState(storedProfileSettings)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
@@ -56,6 +58,9 @@ export function useUpyunState() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [directoryError, setDirectoryError] = useState('')
+  const [dialogError, setDialogError] = useState('')
+  const [moveError, setMoveError] = useState('')
   const [touchMode, setTouchMode] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -77,21 +82,28 @@ export function useUpyunState() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [renameValue, setRenameValue] = useState('')
+  const [deleteTargets, setDeleteTargets] = useState([])
   const fileInputRef = useRef(null)
   const folderInputRef = useRef(null)
   const moveLoadTokenRef = useRef(0)
   const detailLoadTokenRef = useRef(0)
+  const directoryLoadRef = useRef({ id: 0, controller: null })
+  const operationRef = useRef(false)
+  const selectionAnchorRef = useRef('')
 
   const selectedItems = useMemo(
-    () => items.filter((item) => selectedPaths.includes(item.uri)),
+    () => {
+      const selected = new Set(selectedPaths)
+      return items.filter((item) => selected.has(item.uri))
+    },
     [items, selectedPaths],
   )
   const selectedItem = selectedItems.length === 1 ? selectedItems[0] : null
   const selectedFileItem = selectedItem && selectedItem.folderType !== 'F' ? selectedItem : null
   const sortedItems = useMemo(() => sortItems(items, sortState), [items, sortState])
   const visibleItems = useMemo(
-    () => sortedItems.filter((item) => matchesItemFilter(item, itemFilter)),
-    [itemFilter, sortedItems],
+    () => sortedItems.filter((item) => matchesItemFilter(item, itemFilter) && matchesSearch(item, searchQuery)),
+    [itemFilter, searchQuery, sortedItems],
   )
   const currentProfileTasks = useMemo(
     () => tasks.filter((task) => task.profileKey === (profile?.key || '')),
@@ -127,14 +139,8 @@ export function useUpyunState() {
     [detailItem, profile, profileSettings],
   )
   const detailHeaderEntries = useMemo(() => Object.entries(detailHeaders || {}), [detailHeaders])
-  const canRenameSelected = Boolean(selectedItem)
-  const canDownloadSelected = selectedPaths.length > 0
-  const canDeleteSelected = selectedPaths.length > 0
-  const canCopyLinkSelected = Boolean(selectedFileItem)
-  const canOpenInBrowserSelected = Boolean(selectedFileItem)
-  const canViewDetailSelected = Boolean(selectedItem)
   const canConfirmMove = Boolean(
-    moveTargets.length &&
+    !moveLoading && !moveError && moveTargets.length &&
     moveTargets.every((item) => canMovePath(item.uri, moveBrowsePath)),
   )
   const availableGridDensityOptions = useMemo(
@@ -149,7 +155,7 @@ export function useUpyunState() {
     [availableGridDensityOptions, gridDensity],
   )
   const gridColumnsStyle = useMemo(
-    () => ({ gridTemplateColumns: `repeat(${activeGridDensity.columns}, minmax(0, 1fr))` }),
+    () => ({ '--grid-columns': activeGridDensity.columns }),
     [activeGridDensity],
   )
   const gridGapClass = useMemo(() => {
@@ -159,6 +165,20 @@ export function useUpyunState() {
   }, [activeGridDensity])
 
   return {
+    searchQuery,
+    setSearchQuery,
+    directoryError,
+    setDirectoryError,
+    dialogError,
+    setDialogError,
+    moveError,
+    setMoveError,
+    deleteTargets,
+    setDeleteTargets,
+    directoryLoadRef,
+    operationRef,
+    selectionAnchorRef,
+    runningTaskCount,
     authForm,
     setAuthForm,
     authHistory,
@@ -267,12 +287,6 @@ export function useUpyunState() {
     detailItem,
     detailPublicUrl,
     detailHeaderEntries,
-    canRenameSelected,
-    canDownloadSelected,
-    canDeleteSelected,
-    canCopyLinkSelected,
-    canOpenInBrowserSelected,
-    canViewDetailSelected,
     canConfirmMove,
     availableGridDensityOptions,
     activeGridDensity,

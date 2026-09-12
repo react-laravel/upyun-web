@@ -1,4 +1,4 @@
-async function request(path, { method = 'GET', token, body, formData } = {}) {
+async function request(path, { method = 'GET', token, body, formData, signal } = {}) {
   const headers = {}
 
   if (token) {
@@ -12,6 +12,7 @@ async function request(path, { method = 'GET', token, body, formData } = {}) {
   const response = await fetch(path, {
     method,
     headers,
+    signal,
     body: formData || (body ? JSON.stringify(body) : undefined),
   })
 
@@ -43,13 +44,13 @@ function resolveDownloadFilename(response, targetPath) {
       return decodeURIComponent(utf8Match[1])
     }
     if (plainMatch?.[1]) {
-      return decodeURIComponent(plainMatch[1])
+      return plainMatch[1]
     }
   } catch {
     return fallbackName
   }
 
-  return decodeURIComponent(fallbackName)
+  return fallbackName
 }
 
 export const api = {
@@ -59,8 +60,8 @@ export const api = {
   logout(token) {
     return request('/api/auth/logout', { method: 'POST', token })
   },
-  list(token, remotePath = '/') {
-    return request(`/api/list?path=${encodeURIComponent(remotePath)}`, { token })
+  list(token, remotePath = '/', { signal } = {}) {
+    return request(`/api/list?path=${encodeURIComponent(remotePath)}`, { token, signal })
   },
   createFolder(token, payload) {
     return request('/api/folder', { method: 'POST', token, body: payload })

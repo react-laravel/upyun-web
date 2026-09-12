@@ -37,7 +37,7 @@ function TaskList({ type, list, onClearCompletedTasks, onDeleteTask }) {
         <div>
           {canClearCompleted && (
             <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => onClearCompletedTasks(type)}>
-              清空已完成
+              清理已结束
             </Button>
           )}
         </div>
@@ -53,7 +53,7 @@ function TaskList({ type, list, onClearCompletedTasks, onDeleteTask }) {
             <div key={task.id} className="rounded-2xl border bg-card p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-medium">{task.title}</div>
+                  <div className="break-all font-medium">{task.title}</div>
                   <div className="mt-1 break-all text-sm text-muted-foreground">{task.detail}</div>
                   {task.errorMessage && (
                     <div className="mt-1 break-all text-sm text-destructive">{task.errorMessage}</div>
@@ -94,11 +94,12 @@ export function HistoryDrawer({
   theme,
   onToggleTheme,
   onLogout,
+  busy,
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="left-0 right-auto top-0 h-full w-[min(18rem,calc(100%-0.75rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none rounded-r-2xl p-0 sm:max-w-none"
+        className="left-0 right-auto top-0 h-dvh max-h-dvh w-[min(18rem,calc(100%-0.75rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none rounded-r-2xl p-0 sm:max-w-none"
         aria-describedby={undefined}>
         <div className="flex h-full flex-col">
           <DialogHeader className="border-b px-4 py-4 pr-12">
@@ -114,7 +115,7 @@ export function HistoryDrawer({
                 </span>
                 <span>{formatBytes(usage)}</span>
               </div>
-              <Button variant="ghost" className="w-full justify-start px-0 hover:bg-transparent" onClick={onOpenSettings}>
+              <Button variant="ghost" className="w-full justify-start px-0 hover:bg-transparent" disabled={busy} onClick={onOpenSettings}>
                 <Settings2Icon />
                 链接设置
               </Button>
@@ -130,7 +131,7 @@ export function HistoryDrawer({
                 {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                 {theme === 'dark' ? '浅色模式' : '深色模式'}
               </Button>
-              <Button variant="ghost" className="w-full justify-start px-0 hover:bg-transparent" onClick={onLogout}>
+              <Button variant="ghost" className="w-full justify-start px-0 hover:bg-transparent" disabled={busy} onClick={onLogout}>
                 <LogOutIcon />
                 退出
               </Button>
@@ -149,6 +150,7 @@ export function ActivityDrawer({
   onSidebarViewChange,
   operationHistory,
   onUndoAction,
+  busy,
   uploadTasks,
   downloadTasks,
   onClearCompletedTasks,
@@ -157,11 +159,11 @@ export function ActivityDrawer({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="right-0 left-auto top-0 h-full w-[min(24rem,calc(100%-0.75rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none rounded-l-2xl p-0 sm:max-w-none"
+        className="right-0 left-auto top-0 h-dvh max-h-dvh w-[min(24rem,calc(100%-0.75rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none rounded-l-2xl p-0 sm:max-w-none"
         aria-describedby={undefined}>
         <div className="flex h-full flex-col">
           <DialogHeader className="min-h-12 justify-center border-b px-4 py-4 pr-12">
-            <DialogTitle className="sr-only">任务与历史</DialogTitle>
+            <DialogTitle >任务与历史</DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -217,8 +219,8 @@ export function ActivityDrawer({
                               <span>{formatHistoryTime(item.createdAt)}</span>
                             </div>
                             {canUndo && (
-                              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => void onUndoAction(item)}>
-                                Undo
+                              <Button variant="ghost" size="sm" className="h-7 px-2" disabled={busy} onClick={() => void onUndoAction(item)}>
+                                撤销
                               </Button>
                             )}
                           </div>

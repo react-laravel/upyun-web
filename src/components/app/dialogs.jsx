@@ -3,6 +3,8 @@ import {
   CopyIcon,
   ExternalLinkIcon,
   FolderIcon,
+  LoaderCircleIcon,
+  Trash2Icon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,6 +23,7 @@ import {
   getDefaultDomain,
   getFileKind,
   getMovedPath,
+  validateItemName,
 } from '@/lib/upyun-app'
 import { cn } from '@/lib/utils'
 import { FileTypeIcon, PathBreadcrumb } from '@/components/app/browser'
@@ -35,6 +38,9 @@ export function MoveDialog({
   moveFolders,
   moveLoading,
   canConfirmMove,
+  error,
+  moveLoadError,
+  onRetry,
   onNavigate,
   onConfirm,
 }) {
@@ -46,7 +52,7 @@ export function MoveDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent showCloseButton={!busy}>
         <DialogHeader>
           <DialogTitle>移动到</DialogTitle>
           <DialogDescription>
@@ -55,12 +61,17 @@ export function MoveDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          <PathBreadcrumb path={moveBrowsePath} onNavigate={onNavigate} />
+          <PathBreadcrumb path={moveBrowsePath} onNavigate={onNavigate} disabled={busy} />
 
           <div className="max-h-80 min-h-64 overflow-y-auto rounded-xl border bg-card">
             {moveLoading ? (
               <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">
                 正在读取目录…
+              </div>
+            ) : moveLoadError ? (
+              <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+                无法读取目标目录
+                <Button size="sm" variant="outline" disabled={busy} onClick={onRetry}>重新读取</Button>
               </div>
             ) : moveFolders.length ? (
               <div className="divide-y">
@@ -68,6 +79,7 @@ export function MoveDialog({
                   <button
                     key={folder.uri}
                     type="button"
+                    disabled={busy}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-muted"
                     onClick={() => onNavigate(folder.uri)}>
                     <FolderIcon className="size-4 shrink-0 text-amber-500" />
@@ -82,15 +94,16 @@ export function MoveDialog({
             )}
           </div>
 
-          <div className="space-y-1 text-xs text-muted-foreground">
+          {error && <p role="alert" className="break-words text-sm text-destructive">{error}</p>}
+          <div className="space-y-1 break-all text-xs text-muted-foreground">
             <div>当前目标目录：{moveBrowsePath}</div>
             <div>将移动为：{targetPreviewPath || '--'}</div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => void onConfirm()} disabled={busy || !canConfirmMove}>确认</Button>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={() => void onConfirm()} disabled={busy || moveLoading || !canConfirmMove}>{busy ? '移动中…' : '移动到此目录'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -155,7 +168,7 @@ export function SettingsDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>取消</Button>
           <Button onClick={() => void onSave()} disabled={busy}>保存</Button>
         </DialogFooter>
       </DialogContent>
@@ -333,51 +346,57 @@ export function DetailDialog({
   )
 }
 
-export function CreateFolderDialog({
-  open,
-  onOpenChange,
-  currentPath,
-  value,
-  busy,
-  onValueChange,
-  onConfirm,
-}) {
+function NameDialog({ open, onOpenChange, title, description, value, busy, error, onValueChange, onConfirm, confirmLabel, originalName }) {
+  const validationError = value ? validateItemName(value) : ''
+  const visibleError = error || validationError
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>新建文件夹</DialogTitle>
-          <DialogDescription>在当前目录 {currentPath} 下创建一个新的文件夹。</DialogDescription>
-        </DialogHeader>
-        <Input autoFocus placeholder="例如：assets、docs、backup" value={value} onChange={(event) => onValueChange(event.target.value)} />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={onConfirm} disabled={busy || !value.trim()}>创建</Button>
-        </DialogFooter>
+    <Dialog open={open} onOpenChange={(next) => { if (!busy) onOpenChange(next) }}>
+      <DialogContent showCloseButton={!busy}>
+        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (!busy && !validationError && value.trim()) void onConfirm() }}>
+          <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription className="break-all">{description}</DialogDescription></DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="item-name" className="text-sm font-medium">名称</label>
+            <Input id="item-name" autoFocus required value={value} disabled={busy} maxLength={255}
+              aria-invalid={Boolean(visibleError)} aria-describedby={visibleError ? 'item-name-error' : undefined}
+              placeholder="输入名称" onChange={(event) => onValueChange(event.target.value)} />
+            {visibleError && <p id="item-name-error" role="alert" className="break-words text-sm text-destructive">{visibleError}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" disabled={busy || !value.trim() || Boolean(validationError) || value.trim() === originalName}>
+              {busy && <LoaderCircleIcon className="animate-spin" />}{busy ? '处理中…' : confirmLabel}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )
 }
 
-export function RenameDialog({
-  open,
-  onOpenChange,
-  value,
-  busy,
-  onValueChange,
-  onConfirm,
-}) {
+export function CreateFolderDialog({ currentPath, ...props }) {
+  return <NameDialog {...props} title="新建文件夹" description={`创建位置：${currentPath}`} confirmLabel="创建" />
+}
+
+export function RenameDialog(props) {
+  return <NameDialog {...props} title="重命名" description="修改名称后，公开链接中的文件路径也会改变。" confirmLabel="保存" />
+}
+
+export function DeleteDialog({ open, onOpenChange, items, busy, error, onConfirm }) {
+  const hasFolders = items.some((item) => item.folderType === 'F')
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={(next) => { if (!busy) onOpenChange(next) }}>
+      <DialogContent showCloseButton={!busy}>
         <DialogHeader>
-          <DialogTitle>重命名</DialogTitle>
-          <DialogDescription>只修改当前选中项目的名称，不改变所在目录。</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Trash2Icon className="size-4 text-destructive" />删除 {items.length} 项</DialogTitle>
+          <DialogDescription>{hasFolders ? '文件夹及其全部内容将被永久删除，此操作无法撤销。' : '文件将被永久删除，此操作无法撤销。'}</DialogDescription>
         </DialogHeader>
-        <Input autoFocus value={value} onChange={(event) => onValueChange(event.target.value)} />
+        <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border bg-muted/30 p-3">
+          {items.map((item) => <li key={item.uri} className="flex items-center gap-2 text-sm"><FileTypeIcon item={item} /><span className="min-w-0 break-all">{item.filename}</span></li>)}
+        </ul>
+        {error && <p role="alert" className="break-words text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={onConfirm} disabled={busy || !value.trim()}>保存</Button>
+          <Button data-cancel-delete autoFocus variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>取消</Button>
+          <Button variant="destructive" disabled={busy || !items.length} onClick={() => void onConfirm()}>{busy && <LoaderCircleIcon className="animate-spin" />}{busy ? '删除中…' : '确认删除'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

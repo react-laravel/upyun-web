@@ -15,8 +15,10 @@ export function useUpyunAuthSettingsActions(state, utils) {
   }
 
   function handleSettingsOpenChange(nextOpen) {
+    if (state.busy) return
     state.setSettingsOpen(nextOpen)
     if (nextOpen) {
+      state.setHistoryOpen(false)
       state.setDomainValue(state.profileSettings.domain || '')
       state.setDomainError('')
     }
@@ -117,6 +119,7 @@ export function useUpyunAuthSettingsActions(state, utils) {
   }
 
   async function handleLogout() {
+    if (state.operationRef.current) return
     try {
       if (state.token) {
         await api.logout(state.token)

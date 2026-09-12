@@ -20,6 +20,7 @@ export function PathBreadcrumb({
   onDragOver,
   onDragLeave,
   onDrop,
+  disabled = false,
 }) {
   const pathItems = getPathSegments(path)
 
@@ -35,13 +36,15 @@ export function PathBreadcrumb({
                 <Fragment key={item.path}>
                   <BreadcrumbItem>
                     {index === pathItems.length - 1 ? (
-                      <BreadcrumbPage className="rounded-md px-1.5 py-0.5">{item.label}</BreadcrumbPage>
+                      <BreadcrumbPage className="max-w-64 truncate rounded-md px-1.5 py-1" title={item.label}>{item.label}</BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink asChild>
                         <button
                           type="button"
+                          disabled={disabled}
+                          title={item.label}
                           className={cn(
-                            'cursor-pointer rounded-md px-1.5 py-0.5 transition',
+                            'max-w-64 cursor-pointer truncate rounded-md px-1.5 py-1 transition hover:bg-muted disabled:cursor-default disabled:opacity-50',
                             dropTargetPath === item.path && 'bg-sky-100 text-sky-700',
                           )}
                           onClick={() => onNavigate(item.path)}

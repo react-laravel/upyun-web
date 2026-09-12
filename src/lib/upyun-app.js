@@ -44,6 +44,8 @@ const TASK_STATUS_MAP = {
   running: '进行中',
   completed: '已完成',
   error: '错误',
+  interrupted: '已中断',
+  cancelled: '已取消',
 }
 
 const LEGACY_GRID_DENSITY_MAP = {
@@ -160,7 +162,11 @@ export function readStoredTasks() {
   try {
     const raw = localStorage.getItem(TASKS_KEY)
     const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    return Array.isArray(parsed) ? parsed.filter((task) => task?.id && task?.type).map((task) => (
+      task.status === 'running'
+        ? { ...task, status: 'interrupted', errorMessage: '页面已关闭或刷新，请检查传输结果后重新操作' }
+        : task
+    )) : []
   } catch {
     return []
   }
@@ -197,7 +203,21 @@ export function createTaskRecord({
 }
 
 export function isTaskEnded(task) {
-  return task.status === 'completed' || task.status === 'error'
+  return ['completed', 'error', 'interrupted', 'cancelled'].includes(task.status)
+}
+
+export function validateItemName(value = '') {
+  const name = value.trim()
+  if (!name) return '请输入名称'
+  const hasControlCharacter = [...name].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+  if (name === '.' || name === '..' || /[/\\]/.test(name) || hasControlCharacter) {
+    return '名称不能包含斜杠、控制字符，也不能为 . 或 ..'
+  }
+  return ''
+}
+
+export function matchesSearch(item, query = '') {
+  return item.filename.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
 }
 
 export function getTaskStatusLabel(task) {
@@ -279,13 +299,7 @@ export function getFileKind(item) {
 }
 
 export function getItemNameFromPath(targetPath = '') {
-  const name = targetPath.split('/').filter(Boolean).pop() || targetPath
-
-  try {
-    return decodeURIComponent(name)
-  } catch {
-    return name
-  }
+  return targetPath.split('/').filter(Boolean).pop() || targetPath
 }
 
 export function getMovedPath(sourcePath = '', targetPath = '') {
@@ -330,7 +344,8 @@ export function buildPublicUrl(profile, settings, targetPath = '') {
   if (!baseUrl || !targetPath) return ''
 
   try {
-    return new URL(String(targetPath).replace(/^\/+/, ''), `${baseUrl.replace(/\/+$/, '')}/`).href
+    const encodedPath = String(targetPath).replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/')
+    return new URL(encodedPath, `${baseUrl.replace(/\/+$/, '')}/`).href
   } catch {
     return ''
   }

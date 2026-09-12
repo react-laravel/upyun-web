@@ -103,7 +103,7 @@ function ThumbnailPreview({ item, token }) {
 
   if (item.folderType === 'F') {
     return (
-      <div ref={containerRef} className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#fef3c7_0%,#f5f5f4_100%)] text-amber-500">
+      <div ref={containerRef} className="flex h-full items-center justify-center bg-amber-50 text-amber-500 dark:bg-amber-950/20">
         <FolderIcon className="size-18" />
       </div>
     )
@@ -126,7 +126,7 @@ function ThumbnailPreview({ item, token }) {
   }
 
   return (
-    <div ref={containerRef} className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#fafaf9_0%,#f1f5f9_100%)] text-stone-500">
+    <div ref={containerRef} className="flex h-full items-center justify-center bg-muted/50 text-muted-foreground">
       <FileTypeIcon item={item} className="size-18" />
     </div>
   )
@@ -187,12 +187,14 @@ export function GridItemCard({
     <div
       ref={cardRef}
       role="button"
-      tabIndex={0}
+      aria-label={item.filename}
+      aria-pressed={active}
+      tabIndex={busy ? -1 : 0}
       draggable={!busy}
       className={cn(
-        'overflow-hidden rounded-xl border bg-card text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:shadow-black/20',
-        active && 'border-sky-300 ring-2 ring-sky-200',
-        dropActive && 'border-sky-400 bg-sky-50 ring-2 ring-sky-300',
+        'overflow-hidden rounded-xl border bg-card text-left transition-colors hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        active && 'border-primary ring-2 ring-primary/20',
+        dropActive && 'border-primary bg-primary/10 ring-2 ring-primary/30',
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -212,6 +214,9 @@ export function GridItemCard({
                 onClick={(event) => event.stopPropagation()}>
                 <input
                   type="checkbox"
+                  disabled={busy}
+                  aria-label={`选择 ${item.filename}`}
+                  onDoubleClick={(event) => event.stopPropagation()}
                   checked={active}
                   onChange={(event) => onToggleSelection(event.target.checked)}
                 />
@@ -220,7 +225,8 @@ export function GridItemCard({
             {showMoreButton && (
               <div
                 className="absolute top-1.5 right-1 z-10 rounded-lg"
-                onClick={(event) => event.stopPropagation()}>
+                onClick={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}>
                 {actions}
               </div>
             )}
@@ -234,7 +240,7 @@ export function GridItemCard({
       </div>
 
       <div className="border-t px-2.5 py-2.5">
-        <div className="truncate text-sm font-medium leading-tight">{item.filename}</div>
+        <div className="truncate text-sm font-medium leading-tight" title={item.filename}>{item.filename}</div>
         {showMeta && item.folderType !== 'F' && (
           <div className="truncate text-xs text-muted-foreground">{formatBytes(item.size)}</div>
         )}

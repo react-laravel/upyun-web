@@ -11,6 +11,10 @@ export function useUpyunTransferActions(state, utils) {
   async function handleUpload(event) {
     const files = Array.from(event.target.files || [])
     if (!files.length) return
+    if (!utils.beginOperation()) {
+      event.target.value = ''
+      return
+    }
 
     const task = createTaskRecord({
       type: 'upload',
@@ -22,8 +26,6 @@ export function useUpyunTransferActions(state, utils) {
     })
 
     utils.prependTask(task)
-    state.setBusy(true)
-    state.setError('')
 
     try {
       const relativePaths = files.map((file) => file.webkitRelativePath || file.name)
@@ -55,13 +57,14 @@ export function useUpyunTransferActions(state, utils) {
       state.setError(requestError.message)
     } finally {
       event.target.value = ''
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
   async function handleDownload(target = state.selectedItem) {
     const downloadTargets = Array.isArray(target) ? target : target ? [target] : state.selectedItems
     if (!downloadTargets.length) return
+    if (!utils.beginOperation()) return
 
     const task = createTaskRecord({
       type: 'download',
@@ -73,8 +76,6 @@ export function useUpyunTransferActions(state, utils) {
     })
 
     utils.prependTask(task)
-    state.setError('')
-    state.setBusy(true)
 
     try {
       const hasFolders = downloadTargets.some((item) => item.folderType === 'F')
@@ -200,9 +201,9 @@ export function useUpyunTransferActions(state, utils) {
     } catch (requestError) {
       if (requestError?.name === 'AbortError') {
         utils.updateTask(task.id, {
-          status: 'error',
+          status: 'cancelled',
           detail: '已取消下载',
-          errorMessage: '用户取消操作',
+          errorMessage: '',
         })
         state.setMessage('已取消下载')
       } else {
@@ -214,7 +215,7 @@ export function useUpyunTransferActions(state, utils) {
         state.setError(requestError.message)
       }
     } finally {
-      state.setBusy(false)
+      utils.endOperation()
     }
   }
 
